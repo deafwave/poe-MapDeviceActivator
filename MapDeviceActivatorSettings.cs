@@ -18,4 +18,5 @@ public class MapDeviceActivatorSettings : ISettings
     public ListNode Scarab2 { get; set; } = new() { Values = new List<string> { "None" }, Value = "None" };
     public ListNode Scarab3 { get; set; } = new() { Values = new List<string> { "None" }, Value = "None" };
     public ListNode Scarab4 { get; set; } = new() { Values = new List<string> { "None" }, Value = "None" };
+    public ListNode Scarab5 { get; set; } = new() { Values = new List<string> { "None" }, Value = "None" };
 }

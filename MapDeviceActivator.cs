@@ -21,7 +21,7 @@ public class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorSettings>
     internal static MapDeviceActivator Instance;
     private readonly Scheduler scheduler = new();
     private bool _activated = false;
-    private readonly string[] _scarabFilters = new string[4];
+    private readonly string[] _scarabFilters = new string[5];
     private List<string> _scarabOptions = ["None"];
     private DateTime _lastScarabRefresh = DateTime.MinValue;
     private static readonly string[] FallbackScarabOptions = ["None"];
@@ -73,6 +73,7 @@ public class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorSettings>
         DrawScarabDropdown("Scarab 2", Settings.Scarab2, 1);
         DrawScarabDropdown("Scarab 3", Settings.Scarab3, 2);
         DrawScarabDropdown("Scarab 4", Settings.Scarab4, 3);
+        DrawScarabDropdown("Scarab 5", Settings.Scarab5, 4);
     }
 
     public override Job Tick()
@@ -403,7 +404,11 @@ public class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorSettings>
         if (item is Entity entity)
             return entity;
 
-        return GetDynamicValue(() => ((dynamic)item).Item) as Entity;
+        var dynamicItem = (dynamic)item;
+        return GetDynamicValue(() => dynamicItem.Item) as Entity ??
+               GetDynamicValue(() => dynamicItem.Entity) as Entity ??
+               GetDynamicValue(() => dynamicItem.Item.Item) as Entity ??
+               GetDynamicValue(() => dynamicItem.InventoryItem.Item) as Entity;
     }
 
     private static bool IsMap(Entity item)
@@ -465,7 +470,7 @@ public class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorSettings>
 
     private ListNode[] GetScarabSettings()
     {
-        return [Settings.Scarab1, Settings.Scarab2, Settings.Scarab3, Settings.Scarab4];
+        return [Settings.Scarab1, Settings.Scarab2, Settings.Scarab3, Settings.Scarab4, Settings.Scarab5];
     }
 
     private IEnumerable<string> GetScarabBaseNamesFromBaseItemTypes()
