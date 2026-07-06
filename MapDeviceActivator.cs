@@ -468,20 +468,30 @@ public class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorSettings>
             foreach (var visibleItem in items)
             {
                 dynamic dynamicVisibleItem = visibleItem;
-                var item = GetDynamicValue(() => dynamicVisibleItem.Item);
-                var baseName = GetDynamicValue(() => dynamicVisibleItem.Item.ItemInfo.BaseName) as string;
-                if (!string.IsNullOrWhiteSpace(baseName) && IsScarabSlotItem(item, baseName))
-                    yield return baseName;
+                var item = GetDynamicValue(() => dynamicVisibleItem.Item) as Entity;
+                var name = GetBaseComponentName(item);
+                if (!string.IsNullOrWhiteSpace(name) && IsScarabSlotItem(item, name))
+                    yield return name;
             }
         }
     }
 
-    private static bool IsScarabSlotItem(object item, string baseName)
+    private static string GetBaseComponentName(Entity item)
+    {
+        if (item == null || !item.TryGetComponent<Base>(out var baseComponent))
+            return string.Empty;
+
+        return GetDynamicValue(() => ((dynamic)baseComponent).Name) as string ??
+               GetDynamicValue(() => ((dynamic)baseComponent).BaseName) as string ??
+               string.Empty;
+    }
+
+    private static bool IsScarabSlotItem(Entity item, string name)
     {
         dynamic dynamicItem = item;
         var metadata = GetDynamicValue(() => dynamicItem.Metadata) as string;
         return metadata?.StartsWith("Metadata/Items/Scarabs/", StringComparison.OrdinalIgnoreCase) == true ||
-               baseName.Contains("Scarab", StringComparison.OrdinalIgnoreCase);
+               name.Contains("Scarab", StringComparison.OrdinalIgnoreCase);
     }
 
     private static string NormalizeItemName(string name)
