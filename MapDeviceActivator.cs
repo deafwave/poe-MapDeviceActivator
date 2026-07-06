@@ -306,7 +306,8 @@ public class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorSettings>
     {
         dynamic atlas = GameController?.IngameState?.IngameUi?.Atlas;
         var innerAtlas = GetDynamicValue(() => atlas.InnerAtlas);
-        if (innerAtlas is not IEnumerable children)
+        var childrenSource = GetDynamicValue(() => ((dynamic)innerAtlas).Children) ?? innerAtlas;
+        if (childrenSource is not IEnumerable children)
             yield break;
 
         foreach (var child in children)
