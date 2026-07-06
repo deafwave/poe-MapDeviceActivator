@@ -21,6 +21,7 @@ public class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorSettings>
     internal static MapDeviceActivator Instance;
     private readonly Scheduler scheduler = new();
     private bool _activated = false;
+    private bool _atlasSelectionAttempted = false;
     private readonly string[] _scarabFilters = new string[5];
     private List<string> _scarabOptions = ["None"];
     private DateTime _lastScarabRefresh = DateTime.MinValue;
@@ -80,7 +81,8 @@ public class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorSettings>
     public override Job Tick()
     {
         var mapDeviceWindow = GameController.IngameState.IngameUi.MapDeviceWindow;
-        if (mapDeviceWindow is { IsVisible: true })
+        var atlas = GameController.IngameState.IngameUi.Atlas;
+        if (mapDeviceWindow is { IsVisible: true } || atlas is { IsVisible: true })
         {
             scheduler.Run();
         }
@@ -90,6 +92,7 @@ public class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorSettings>
                 scheduler.StopAllRoutines();
 
             _activated = false;
+            _atlasSelectionAttempted = false;
         }
         return null;
     }
@@ -104,7 +107,16 @@ public class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorSettings>
 
         var mapDeviceWindow = GameController.IngameState.IngameUi.MapDeviceWindow;
         if (mapDeviceWindow == null || !mapDeviceWindow.IsVisible)
+        {
+            if (!_atlasSelectionAttempted && !string.IsNullOrWhiteSpace(Settings.AtlasMapName.Value) && GameController.IngameState.IngameUi.Atlas is { IsVisible: true })
+            {
+                _atlasSelectionAttempted = true;
+                Log($"Atlas is open without map device. Queuing atlas map selection: {Settings.AtlasMapName.Value}");
+                scheduler.AddTask(SelectAtlasMap(Settings.AtlasMapName.Value), "SelectAtlasMap");
+            }
+
             return;
+        }
 
         var matchingMap = FindMatchingMapInInventory();
         if (matchingMap == null)
@@ -219,16 +231,22 @@ public class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorSettings>
             return true;
         }
 
-        Log($"Waiting for atlas map tooltip/name to become available: {atlasMapName}");
-        if (!await InputAsync.Wait(() => FindAtlasMapElement(atlasMapName) != null, 5000, $"Timed out waiting for atlas map tooltip name: {atlasMapName}"))
-        {
-            Log($"Could not find atlas map by name: {atlasMapName}. Hover that atlas map once this session so its tooltip name exists.");
-            return false;
-        }
+        return await SelectAtlasMap(atlasMapName);
+    }
+
+    private async SyncTask<bool> SelectAtlasMap(string atlasMapName)
+    {
+        Log($"Looking for atlas map: {atlasMapName}");
 
         var atlasMap = FindAtlasMapElement(atlasMapName);
         if (atlasMap == null)
+            atlasMap = await HoverAtlasMapsUntilNameExists(atlasMapName);
+
+        if (atlasMap == null)
+        {
+            Log($"Could not find atlas map by name: {atlasMapName}. Hover that atlas map once this session if it was not scanned.");
             return false;
+        }
 
         var atlasMapRect = GetAtlasMapRect(atlasMap);
         if (atlasMapRect.Size == Size2F.Zero || atlasMapRect.Height <= 0 || atlasMapRect.Width <= 0)
@@ -240,6 +258,35 @@ public class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorSettings>
         Log($"Clicking atlas map: {GetAtlasMapName(atlasMap)}");
         await InputAsync.ClickElement(atlasMapRect);
         return true;
+    }
+
+    private async SyncTask<object> HoverAtlasMapsUntilNameExists(string atlasMapName)
+    {
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        while (sw.Elapsed < TimeSpan.FromSeconds(5))
+        {
+            foreach (var atlasMap in GetAtlasMapElements())
+            {
+                var rect = GetAtlasMapRect(atlasMap);
+                if (rect.Size == Size2F.Zero || rect.Height <= 0 || rect.Width <= 0)
+                    continue;
+
+                ExileCore.Input.SetCursorPos(rect.Center);
+                await TaskUtils.NextFrame();
+                await TaskUtils.NextFrame();
+
+                var name = GetAtlasMapName(atlasMap);
+                if (!string.IsNullOrWhiteSpace(name))
+                    LogStatus($"Scanned atlas map tooltip: {name}");
+
+                if (AtlasMapNameMatches(name, atlasMapName))
+                    return atlasMap;
+            }
+
+            await TaskUtils.NextFrame();
+        }
+
+        return null;
     }
 
     private bool IsAtlasMapSelected(string atlasMapName)
