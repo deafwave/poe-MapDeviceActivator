@@ -194,13 +194,13 @@ public class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorSettings>
     private async SyncTask<bool> EnsureAtlasMapSelected(object mapDeviceWindow)
     {
         var atlasMapName = Settings.AtlasMapName.Value;
-        if (string.IsNullOrWhiteSpace(atlasMapName) || HasSelectedAtlasMap(mapDeviceWindow))
+        if (string.IsNullOrWhiteSpace(atlasMapName) || IsAtlasMapSelected(atlasMapName))
             return true;
 
-        if (!await InputAsync.Wait(() => FindAtlasMapElement(mapDeviceWindow, atlasMapName) != null, 5000, $"Timed out waiting for atlas map tooltip name: {atlasMapName}"))
+        if (!await InputAsync.Wait(() => FindAtlasMapElement(atlasMapName) != null, 5000, $"Timed out waiting for atlas map tooltip name: {atlasMapName}"))
             return false;
 
-        var atlasMap = FindAtlasMapElement(mapDeviceWindow, atlasMapName);
+        var atlasMap = FindAtlasMapElement(atlasMapName);
         if (atlasMap == null)
             return false;
 
@@ -212,25 +212,23 @@ public class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorSettings>
         return true;
     }
 
-    private static bool HasSelectedAtlasMap(object mapDeviceWindow)
+    private bool IsAtlasMapSelected(string atlasMapName)
     {
-        dynamic window = mapDeviceWindow;
-        return GetDynamicBool(() => window.Atlas.SelectedMap != null) ||
-               GetDynamicBool(() => window.Atlas.SelectedNode != null) ||
-               GetDynamicBool(() => window.Atlas.SelectedElement != null) ||
-               GetAtlasMapElements(mapDeviceWindow).Any(IsSelectedAtlasMapElement);
+        return GetAtlasMapElements()
+            .Where(IsSelectedAtlasMapElement)
+            .Any(x => string.Equals(GetAtlasMapName(x), atlasMapName, StringComparison.OrdinalIgnoreCase));
     }
 
-    private static object FindAtlasMapElement(object mapDeviceWindow, string atlasMapName)
+    private object FindAtlasMapElement(string atlasMapName)
     {
-        return GetAtlasMapElements(mapDeviceWindow)
+        return GetAtlasMapElements()
             .FirstOrDefault(x => string.Equals(GetAtlasMapName(x), atlasMapName, StringComparison.OrdinalIgnoreCase));
     }
 
-    private static IEnumerable<object> GetAtlasMapElements(object mapDeviceWindow)
+    private IEnumerable<object> GetAtlasMapElements()
     {
-        dynamic window = mapDeviceWindow;
-        var innerAtlas = GetDynamicValue(() => window.Atlas.InnerAtlas);
+        dynamic atlas = GameController?.IngameState?.IngameUi?.Atlas;
+        var innerAtlas = GetDynamicValue(() => atlas.InnerAtlas);
         if (innerAtlas is not IEnumerable children)
             yield break;
 
@@ -258,7 +256,6 @@ public class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorSettings>
         dynamic map = atlasMapElement;
         return GetDynamicBool(() => map.IsSelected) ||
                GetDynamicBool(() => map.Selected) ||
-               GetDynamicBool(() => map.IsHighlighted) ||
                GetDynamicBool(() => map.IsActive);
     }
 
@@ -291,6 +288,12 @@ public class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorSettings>
     private static IEnumerable<Entity> GetMapDeviceItems(object mapDeviceWindow)
     {
         dynamic window = mapDeviceWindow;
+
+        foreach (var item in GetItems(GetDynamicValue(() => window.MapSlot)))
+            yield return item;
+
+        foreach (var item in GetItemsSkippingFirst(GetDynamicValue(() => window.ScarabSlots)))
+            yield return item;
 
         foreach (var item in GetItems(GetDynamicValue(() => window.Inventory.InventorySlotItems)))
             yield return item;
@@ -346,6 +349,28 @@ public class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorSettings>
 
         foreach (var item in enumerable)
         {
+            var entity = GetEntity(item);
+            if (entity != null)
+                yield return entity;
+        }
+    }
+
+    private static IEnumerable<Entity> GetItemsSkippingFirst(object items)
+    {
+        if (items is not IEnumerable enumerable || items is string)
+        {
+            foreach (var item in GetItems(items))
+                yield return item;
+
+            yield break;
+        }
+
+        var index = 0;
+        foreach (var item in enumerable)
+        {
+            if (index++ == 0)
+                continue;
+
             var entity = GetEntity(item);
             if (entity != null)
                 yield return entity;
