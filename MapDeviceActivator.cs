@@ -347,8 +347,7 @@ public class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorSettings>
 
         foreach (var child in children)
         {
-            if (Math.Abs(GetDynamicFloat(() => ((dynamic)child).Height) - 53f) < 0.5f)
-                yield return child;
+            yield return child;
         }
     }
 
@@ -366,8 +365,12 @@ public class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorSettings>
             .Where(x => !string.IsNullOrWhiteSpace(x))
             .Take(30)
             .ToList();
+        var heights = atlasMaps
+            .Select(x => GetDynamicFloat(() => ((dynamic)x).Height))
+            .Take(30)
+            .ToList();
 
-        Log($"Atlas scan for '{configuredName}'. CandidateMaps={atlasMaps.Count}, NamedMaps=[{string.Join(", ", names)}]");
+        Log($"Atlas scan for '{configuredName}'. CandidateMaps={atlasMaps.Count}, Heights=[{string.Join(", ", heights)}], NamedMaps=[{string.Join(", ", names)}]");
     }
 
     private static bool AtlasMapNameMatches(string actualName, string configuredName)
