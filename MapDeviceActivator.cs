@@ -184,6 +184,13 @@ public class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorSettings>
 
     private async SyncTask<bool> CtrlClickMapThenActivate(dynamic mapDeviceWindow)
     {
+        if (MapDeviceHasMapAndRequiredScarabs(mapDeviceWindow))
+        {
+            Log("Map device already has required map/scarab state. Clicking Activate.");
+            await InputAsync.ClickElement(mapDeviceWindow.ActivateButton.GetClientRectCache);
+            return true;
+        }
+
         var map = FindMatchingMapInInventory();
         if (map == null)
         {
@@ -340,15 +347,15 @@ public class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorSettings>
 
     private bool MapDeviceHasMapAndRequiredScarabs(object mapDeviceWindow)
     {
-        var items = GetMapDeviceItems(mapDeviceWindow).ToList();
-        if (!items.Any(IsMap))
+        var map = GetMapDeviceMap(mapDeviceWindow);
+        if (map == null || !IsMap(map))
             return false;
 
         var requiredScarabs = GetRequiredScarabs().ToList();
         if (requiredScarabs.Count == 0)
             return true;
 
-        var scarabs = items.Where(IsScarab).Select(GetBaseName).Where(x => !string.IsNullOrWhiteSpace(x)).ToList();
+        var scarabs = GetMapDeviceScarabs(mapDeviceWindow).Where(IsScarab).Select(GetBaseName).Where(x => !string.IsNullOrWhiteSpace(x)).ToList();
         if (scarabs.Count == 0)
             return false;
 
@@ -366,12 +373,12 @@ public class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorSettings>
 
     private string DescribeMapDeviceState(object mapDeviceWindow)
     {
-        var items = GetMapDeviceItems(mapDeviceWindow).ToList();
-        var hasMap = items.Any(IsMap);
-        var scarabs = items.Where(IsScarab).Select(GetBaseName).Where(x => !string.IsNullOrWhiteSpace(x)).ToList();
+        var map = GetMapDeviceMap(mapDeviceWindow);
+        var hasMap = map != null && IsMap(map);
+        var scarabs = GetMapDeviceScarabs(mapDeviceWindow).Where(IsScarab).Select(GetBaseName).Where(x => !string.IsNullOrWhiteSpace(x)).ToList();
         var requiredScarabs = GetRequiredScarabs().ToList();
 
-        return $"HasMap={hasMap}, Scarabs=[{string.Join(", ", scarabs)}], RequiredScarabs=[{string.Join(", ", requiredScarabs)}]";
+        return $"HasMap={hasMap}, MapSlotType={DescribeDynamicType(GetDynamicValue(() => ((dynamic)mapDeviceWindow).MapSlot))}, MapName={GetBaseName(map)}, Scarabs=[{string.Join(", ", scarabs)}], RequiredScarabs=[{string.Join(", ", requiredScarabs)}]";
     }
 
     private void LogStatus(string message)
@@ -388,26 +395,17 @@ public class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorSettings>
         DebugWindow.LogMsg($"MapDeviceActivator: {message}", 5);
     }
 
-    private static IEnumerable<Entity> GetMapDeviceItems(object mapDeviceWindow)
+    private static Entity GetMapDeviceMap(object mapDeviceWindow)
     {
         dynamic window = mapDeviceWindow;
+        var mapSlot = GetDynamicValue(() => window.MapSlot);
+        return GetSlotEntity(mapSlot);
+    }
 
-        foreach (var item in GetItems(GetDynamicValue(() => window.MapSlot)))
-            yield return item;
-
+    private static IEnumerable<Entity> GetMapDeviceScarabs(object mapDeviceWindow)
+    {
+        dynamic window = mapDeviceWindow;
         foreach (var item in GetItemsSkippingFirst(GetDynamicValue(() => window.ScarabSlots)))
-            yield return item;
-
-        foreach (var item in GetItems(GetDynamicValue(() => window.Inventory.InventorySlotItems)))
-            yield return item;
-
-        foreach (var item in GetItems(GetDynamicValue(() => window.MapDeviceInventory.InventorySlotItems)))
-            yield return item;
-
-        foreach (var item in GetItems(GetDynamicValue(() => window.InventorySlotItems)))
-            yield return item;
-
-        foreach (var item in GetItems(GetDynamicValue(() => window.Items)))
             yield return item;
     }
 
@@ -486,6 +484,26 @@ public class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorSettings>
             return entity;
 
         return GetDynamicValue(() => ((dynamic)item).Item) as Entity;
+    }
+
+    private static Entity GetSlotEntity(object slot)
+    {
+        if (slot == null)
+            return null;
+
+        if (slot is Entity entity)
+            return entity;
+
+        dynamic dynamicSlot = slot;
+        return GetDynamicValue(() => dynamicSlot.Item) as Entity ??
+               GetDynamicValue(() => dynamicSlot.Entity) as Entity ??
+               GetDynamicValue(() => dynamicSlot.Item.Item) as Entity ??
+               GetDynamicValue(() => dynamicSlot.InventoryItem.Item) as Entity;
+    }
+
+    private static string DescribeDynamicType(object value)
+    {
+        return value?.GetType().FullName ?? "null";
     }
 
     private static bool IsMap(Entity item)
