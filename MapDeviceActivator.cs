@@ -402,7 +402,7 @@ public class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorSettings>
         var atlasMapSlot = GetDynamicValue(() => atlas.MapDeviceWindow.MapSlot);
         var windowMapSlot = GetDynamicValue(() => window.MapSlot);
 
-        return GetSlotEntity(atlasMapSlot) ?? GetSlotEntity(windowMapSlot);
+        return GetVisibleSlotEntity(atlasMapSlot) ?? GetVisibleSlotEntity(windowMapSlot);
     }
 
     private static IEnumerable<Entity> GetMapDeviceScarabs(object mapDeviceWindow)
@@ -503,6 +503,27 @@ public class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorSettings>
                GetDynamicValue(() => dynamicSlot.Entity) as Entity ??
                GetDynamicValue(() => dynamicSlot.Item.Item) as Entity ??
                GetDynamicValue(() => dynamicSlot.InventoryItem.Item) as Entity;
+    }
+
+    private static Entity GetVisibleSlotEntity(object slot)
+    {
+        if (slot == null)
+            return null;
+
+        dynamic dynamicSlot = slot;
+        var visibleItems = GetDynamicValue(() => dynamicSlot.VisibleInventoryItems);
+        if (visibleItems is not IEnumerable enumerable || visibleItems is string)
+            return null;
+
+        foreach (var visibleItem in enumerable)
+        {
+            dynamic dynamicVisibleItem = visibleItem;
+            var item = GetDynamicValue(() => dynamicVisibleItem.Item) as Entity;
+            if (item is { IsValid: true })
+                return item;
+        }
+
+        return null;
     }
 
     private static string DescribeDynamicType(object value)
