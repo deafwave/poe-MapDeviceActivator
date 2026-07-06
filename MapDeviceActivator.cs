@@ -6,6 +6,7 @@ using System.Text.RegularExpressions;
 using ExileCore;
 using ExileCore.PoEMemory;
 using ExileCore.PoEMemory.Components;
+using ExileCore.PoEMemory.Elements;
 using ExileCore.PoEMemory.MemoryObjects;
 using ExileCore.Shared;
 using ExileCore.Shared.Enums;
@@ -340,13 +341,13 @@ public class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorSettings>
     private IEnumerable<object> GetAtlasMapElements()
     {
         dynamic atlas = GameController?.IngameState?.IngameUi?.Atlas;
-        var childrenSource = GetDynamicValue(() => atlas.InnerAtlas.Children);
-        if (childrenSource is not IEnumerable children)
+        var innerAtlas = GetDynamicValue(() => atlas.InnerAtlas) as Element;
+        if (innerAtlas?.Children == null)
             yield break;
 
-        foreach (var child in children)
+        foreach (var child in innerAtlas.Children)
         {
-            if (Math.Abs(GetDynamicFloat(() => ((dynamic)child).Height) - 53f) < 0.5f)
+            if (Math.Abs(child.Height - 53f) < 0.5f)
                 yield return child;
         }
     }
@@ -360,8 +361,8 @@ public class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorSettings>
     private void LogAtlasScanState(string configuredName)
     {
         dynamic atlas = GameController?.IngameState?.IngameUi?.Atlas;
-        var allChildren = GetDynamicValue(() => atlas.InnerAtlas.Children) as IEnumerable;
-        var allChildList = allChildren?.Cast<object>().ToList() ?? [];
+        var innerAtlas = GetDynamicValue(() => atlas.InnerAtlas) as Element;
+        var allChildList = innerAtlas?.Children?.Cast<object>().ToList() ?? [];
         var atlasMaps = GetAtlasMapElements().ToList();
         var names = atlasMaps
             .Select(GetAtlasMapName)
@@ -369,7 +370,7 @@ public class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorSettings>
             .Take(30)
             .ToList();
         var heights = allChildList
-            .Select(x => GetDynamicFloat(() => ((dynamic)x).Height))
+            .Select(x => x is Element element ? element.Height : GetDynamicFloat(() => ((dynamic)x).Height))
             .Take(30)
             .ToList();
 
