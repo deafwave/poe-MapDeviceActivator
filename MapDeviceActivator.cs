@@ -184,8 +184,14 @@ public class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorSettings>
 
     private async SyncTask<bool> CtrlClickMapThenActivate(dynamic mapDeviceWindow)
     {
-        if (MapDeviceHasMapAndRequiredScarabs(mapDeviceWindow))
+        if (MapDeviceHasMap(mapDeviceWindow))
         {
+            if (!MapDeviceHasRequiredScarabs())
+            {
+                Log($"Map is already inserted, but scarab requirements are not met. Not inserting another map. {DescribeMapDeviceState(mapDeviceWindow)}");
+                return false;
+            }
+
             Log("Map device already has required map/scarab state. Clicking Activate.");
             await InputAsync.ClickElement(mapDeviceWindow.ActivateButton.GetClientRectCache);
             return true;
@@ -210,9 +216,15 @@ public class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorSettings>
         await InputAsync.ClickElement(mapRect);
         await InputAsync.ReleaseCtrl();
 
-        if (!await InputAsync.Wait(() => MapDeviceHasMapAndRequiredScarabs(mapDeviceWindow), 1000, "Timed out waiting for map device slots to contain a map and required scarabs."))
+        if (!await InputAsync.Wait(() => MapDeviceHasMap(mapDeviceWindow), 1000, "Timed out waiting for map device slot to contain a map."))
         {
             Log($"Map device slot check failed. {DescribeMapDeviceState(mapDeviceWindow)}");
+            return false;
+        }
+
+        if (!MapDeviceHasRequiredScarabs())
+        {
+            Log($"Map inserted, but scarab requirements are not met. {DescribeMapDeviceState(mapDeviceWindow)}");
             return false;
         }
 
@@ -347,10 +359,17 @@ public class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorSettings>
 
     private bool MapDeviceHasMapAndRequiredScarabs(object mapDeviceWindow)
     {
-        var map = GetMapDeviceMap(mapDeviceWindow);
-        if (map == null || !IsMap(map))
-            return false;
+        return MapDeviceHasMap(mapDeviceWindow) && MapDeviceHasRequiredScarabs();
+    }
 
+    private static bool MapDeviceHasMap(object mapDeviceWindow)
+    {
+        var map = GetMapDeviceMap(mapDeviceWindow);
+        return map != null && IsMap(map);
+    }
+
+    private bool MapDeviceHasRequiredScarabs()
+    {
         var requiredScarabs = GetRequiredScarabs().ToList();
         if (requiredScarabs.Count == 0)
             return true;
