@@ -340,14 +340,14 @@ public class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorSettings>
     private IEnumerable<object> GetAtlasMapElements()
     {
         dynamic atlas = GameController?.IngameState?.IngameUi?.Atlas;
-        var innerAtlas = GetDynamicValue(() => atlas.InnerAtlas);
-        var childrenSource = GetDynamicValue(() => ((dynamic)innerAtlas).Children) ?? innerAtlas;
+        var childrenSource = GetDynamicValue(() => atlas.InnerAtlas.Children);
         if (childrenSource is not IEnumerable children)
             yield break;
 
         foreach (var child in children)
         {
-            yield return child;
+            if (Math.Abs(GetDynamicFloat(() => ((dynamic)child).Height) - 53f) < 0.5f)
+                yield return child;
         }
     }
 
@@ -359,18 +359,21 @@ public class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorSettings>
 
     private void LogAtlasScanState(string configuredName)
     {
+        dynamic atlas = GameController?.IngameState?.IngameUi?.Atlas;
+        var allChildren = GetDynamicValue(() => atlas.InnerAtlas.Children) as IEnumerable;
+        var allChildList = allChildren?.Cast<object>().ToList() ?? [];
         var atlasMaps = GetAtlasMapElements().ToList();
         var names = atlasMaps
             .Select(GetAtlasMapName)
             .Where(x => !string.IsNullOrWhiteSpace(x))
             .Take(30)
             .ToList();
-        var heights = atlasMaps
+        var heights = allChildList
             .Select(x => GetDynamicFloat(() => ((dynamic)x).Height))
             .Take(30)
             .ToList();
 
-        Log($"Atlas scan for '{configuredName}'. CandidateMaps={atlasMaps.Count}, Heights=[{string.Join(", ", heights)}], NamedMaps=[{string.Join(", ", names)}]");
+        Log($"Atlas scan for '{configuredName}'. Children={allChildList.Count}, CandidateMaps={atlasMaps.Count}, Heights=[{string.Join(", ", heights)}], NamedMaps=[{string.Join(", ", names)}]");
     }
 
     private static bool AtlasMapNameMatches(string actualName, string configuredName)
