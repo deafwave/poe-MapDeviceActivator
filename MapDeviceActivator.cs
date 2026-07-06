@@ -216,13 +216,13 @@ public class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorSettings>
     {
         return GetAtlasMapElements()
             .Where(IsSelectedAtlasMapElement)
-            .Any(x => string.Equals(GetAtlasMapName(x), atlasMapName, StringComparison.OrdinalIgnoreCase));
+            .Any(x => AtlasMapNameMatches(GetAtlasMapName(x), atlasMapName));
     }
 
     private object FindAtlasMapElement(string atlasMapName)
     {
         return GetAtlasMapElements()
-            .FirstOrDefault(x => string.Equals(GetAtlasMapName(x), atlasMapName, StringComparison.OrdinalIgnoreCase));
+            .FirstOrDefault(x => AtlasMapNameMatches(GetAtlasMapName(x), atlasMapName));
     }
 
     private IEnumerable<object> GetAtlasMapElements()
@@ -243,6 +243,27 @@ public class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorSettings>
     {
         dynamic map = atlasMapElement;
         return GetDynamicValue(() => map.Tooltip.Children[1].Children[0].Text) as string ?? string.Empty;
+    }
+
+    private static bool AtlasMapNameMatches(string actualName, string configuredName)
+    {
+        var actual = NormalizeAtlasMapName(actualName);
+        var configured = NormalizeAtlasMapName(configuredName);
+
+        return !string.IsNullOrWhiteSpace(actual) &&
+               !string.IsNullOrWhiteSpace(configured) &&
+               (string.Equals(actual, configured, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(RemoveMapSuffix(actual), RemoveMapSuffix(configured), StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static string NormalizeAtlasMapName(string name)
+    {
+        return Regex.Replace(name ?? string.Empty, @"\s+", " ").Trim();
+    }
+
+    private static string RemoveMapSuffix(string name)
+    {
+        return name.EndsWith(" Map", StringComparison.OrdinalIgnoreCase) ? name[..^4].Trim() : name;
     }
 
     private static RectangleF GetAtlasMapRect(object atlasMapElement)
