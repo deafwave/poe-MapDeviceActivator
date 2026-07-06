@@ -22,6 +22,7 @@ public class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorSettings>
     private readonly Scheduler scheduler = new();
     private bool _activated = false;
     private bool _atlasSelectionAttempted = false;
+    private DateTime _lastAtlasSelectionAttempt = DateTime.MinValue;
     private readonly string[] _scarabFilters = new string[5];
     private List<string> _scarabOptions = ["None"];
     private DateTime _lastScarabRefresh = DateTime.MinValue;
@@ -108,11 +109,13 @@ public class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorSettings>
         var mapDeviceWindow = GetMapDeviceWindow();
         if (!IsMapDeviceWindowVisible(mapDeviceWindow))
         {
-            if (!_atlasSelectionAttempted && !string.IsNullOrWhiteSpace(Settings.AtlasMapName.Value) && GameController.IngameState.IngameUi.Atlas is { IsVisible: true })
+            if (ShouldAttemptAtlasSelection())
             {
                 _atlasSelectionAttempted = true;
+                _lastAtlasSelectionAttempt = DateTime.UtcNow;
                 Log($"Atlas is open without map device. Queuing atlas map selection: {Settings.AtlasMapName.Value}");
                 scheduler.AddTask(SelectAtlasMap(Settings.AtlasMapName.Value), "SelectAtlasMap");
+                scheduler.Run();
             }
 
             return;
@@ -145,6 +148,14 @@ public class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorSettings>
         Log("Queued map activation task.");
         scheduler.AddTask(CtrlClickMapThenActivate(mapDeviceWindow), "ActivateMap");
         scheduler.Run();
+    }
+
+    private bool ShouldAttemptAtlasSelection()
+    {
+        if (string.IsNullOrWhiteSpace(Settings.AtlasMapName.Value) || GameController.IngameState.IngameUi.Atlas is not { IsVisible: true })
+            return false;
+
+        return !_atlasSelectionAttempted || (DateTime.UtcNow - _lastAtlasSelectionAttempt).TotalSeconds > 5;
     }
 
     private object GetMapDeviceWindow()
@@ -260,6 +271,7 @@ public class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorSettings>
     private async SyncTask<bool> SelectAtlasMap(string atlasMapName)
     {
         Log($"Looking for atlas map: {atlasMapName}");
+        LogAtlasScanState(atlasMapName);
 
         var atlasMap = FindAtlasMapElement(atlasMapName);
         if (atlasMap == null)
@@ -344,6 +356,18 @@ public class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorSettings>
     {
         dynamic map = atlasMapElement;
         return GetDynamicValue(() => map.Tooltip.Children[1].Children[0].Text) as string ?? string.Empty;
+    }
+
+    private void LogAtlasScanState(string configuredName)
+    {
+        var atlasMaps = GetAtlasMapElements().ToList();
+        var names = atlasMaps
+            .Select(GetAtlasMapName)
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Take(30)
+            .ToList();
+
+        Log($"Atlas scan for '{configuredName}'. CandidateMaps={atlasMaps.Count}, NamedMaps=[{string.Join(", ", names)}]");
     }
 
     private static bool AtlasMapNameMatches(string actualName, string configuredName)
@@ -506,6 +530,14 @@ public class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorSettings>
             return getter();
         }
         catch (RuntimeBinderException)
+        {
+            return null;
+        }
+        catch (NullReferenceException)
+        {
+            return null;
+        }
+        catch (ArgumentOutOfRangeException)
         {
             return null;
         }
