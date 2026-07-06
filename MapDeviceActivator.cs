@@ -340,8 +340,7 @@ public class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorSettings>
 
     private IEnumerable<object> GetAtlasMapElements()
     {
-        dynamic atlas = GameController?.IngameState?.IngameUi?.Atlas;
-        var innerAtlas = GetDynamicValue(() => atlas.InnerAtlas) as Element;
+        var innerAtlas = GetInnerAtlasElement();
         if (innerAtlas?.Children == null)
             yield break;
 
@@ -360,8 +359,8 @@ public class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorSettings>
 
     private void LogAtlasScanState(string configuredName)
     {
-        dynamic atlas = GameController?.IngameState?.IngameUi?.Atlas;
-        var innerAtlas = GetDynamicValue(() => atlas.InnerAtlas) as Element;
+        var atlas = GameController?.IngameState?.IngameUi?.Atlas;
+        var innerAtlas = GetInnerAtlasElement();
         var allChildList = innerAtlas?.Children?.Cast<object>().ToList() ?? [];
         var atlasMaps = GetAtlasMapElements().ToList();
         var names = atlasMaps
@@ -374,7 +373,27 @@ public class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorSettings>
             .Take(30)
             .ToList();
 
-        Log($"Atlas scan for '{configuredName}'. Children={allChildList.Count}, CandidateMaps={atlasMaps.Count}, Heights=[{string.Join(", ", heights)}], NamedMaps=[{string.Join(", ", names)}]");
+        Log($"Atlas scan for '{configuredName}'. AtlasType={DescribeDynamicType(atlas)}, InnerAtlasType={DescribeDynamicType(innerAtlas)}, Children={allChildList.Count}, CandidateMaps={atlasMaps.Count}, Heights=[{string.Join(", ", heights)}], NamedMaps=[{string.Join(", ", names)}]");
+    }
+
+    private Element GetInnerAtlasElement()
+    {
+        var atlas = GameController?.IngameState?.IngameUi?.Atlas as Element;
+        return GetChild(atlas, 0, 2);
+    }
+
+    private static Element GetChild(Element element, params int[] indices)
+    {
+        var current = element;
+        foreach (var index in indices)
+        {
+            if (current?.Children == null || current.Children.Count <= index)
+                return null;
+
+            current = current.Children[index];
+        }
+
+        return current;
     }
 
     private static bool AtlasMapNameMatches(string actualName, string configuredName)
