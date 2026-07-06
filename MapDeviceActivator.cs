@@ -398,8 +398,11 @@ public class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorSettings>
     private static Entity GetMapDeviceMap(object mapDeviceWindow)
     {
         dynamic window = mapDeviceWindow;
-        var mapSlot = GetDynamicValue(() => window.MapSlot);
-        return GetSlotEntity(mapSlot);
+        dynamic atlas = Instance?.GameController?.IngameState?.IngameUi?.Atlas;
+        var atlasMapSlot = GetDynamicValue(() => atlas.MapDeviceWindow.MapSlot);
+        var windowMapSlot = GetDynamicValue(() => window.MapSlot);
+
+        return GetSlotEntity(atlasMapSlot) ?? GetSlotEntity(windowMapSlot);
     }
 
     private static IEnumerable<Entity> GetMapDeviceScarabs(object mapDeviceWindow)
@@ -495,7 +498,8 @@ public class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorSettings>
             return entity;
 
         dynamic dynamicSlot = slot;
-        return GetDynamicValue(() => dynamicSlot.Item) as Entity ??
+        return GetDynamicValue(() => dynamicSlot.VisibleInventoryItems[0].Item) as Entity ??
+               GetDynamicValue(() => dynamicSlot.Item) as Entity ??
                GetDynamicValue(() => dynamicSlot.Entity) as Entity ??
                GetDynamicValue(() => dynamicSlot.Item.Item) as Entity ??
                GetDynamicValue(() => dynamicSlot.InventoryItem.Item) as Entity;
