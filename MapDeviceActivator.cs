@@ -398,13 +398,16 @@ public class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorSettings>
         if (requiredScarabs.Count == 0)
             return true;
 
-        var scarabs = GetMapDeviceScarabNames().ToList();
+        var scarabs = GetMapDeviceScarabNames().Select(NormalizeItemName).Where(x => !string.IsNullOrWhiteSpace(x)).ToList();
+        LogStatus($"Scarab check. Found=[{string.Join(", ", scarabs)}], Required=[{string.Join(", ", requiredScarabs)}]");
+
         if (scarabs.Count == 0)
             return false;
 
         foreach (var requiredScarab in requiredScarabs)
         {
-            var index = scarabs.FindIndex(x => string.Equals(x, requiredScarab, StringComparison.OrdinalIgnoreCase));
+            var normalizedRequiredScarab = NormalizeItemName(requiredScarab);
+            var index = scarabs.FindIndex(x => string.Equals(x, normalizedRequiredScarab, StringComparison.OrdinalIgnoreCase));
             if (index < 0)
                 return false;
 
@@ -455,17 +458,35 @@ public class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorSettings>
         if (scarabSlots is not IEnumerable slots || scarabSlots is string)
             yield break;
 
-        var index = 0;
         foreach (var slot in slots)
         {
-            if (index++ == 0)
+            dynamic dynamicSlot = slot;
+            var visibleItems = GetDynamicValue(() => dynamicSlot.VisibleInventoryItems);
+            if (visibleItems is not IEnumerable items || visibleItems is string)
                 continue;
 
-            dynamic dynamicSlot = slot;
-            var baseName = GetDynamicValue(() => dynamicSlot.VisibleInventoryItems[0].Item.ItemInfo.BaseName) as string;
-            if (!string.IsNullOrWhiteSpace(baseName))
-                yield return baseName;
+            foreach (var visibleItem in items)
+            {
+                dynamic dynamicVisibleItem = visibleItem;
+                var item = GetDynamicValue(() => dynamicVisibleItem.Item);
+                var baseName = GetDynamicValue(() => dynamicVisibleItem.Item.ItemInfo.BaseName) as string;
+                if (!string.IsNullOrWhiteSpace(baseName) && IsScarabSlotItem(item, baseName))
+                    yield return baseName;
+            }
         }
+    }
+
+    private static bool IsScarabSlotItem(object item, string baseName)
+    {
+        dynamic dynamicItem = item;
+        var metadata = GetDynamicValue(() => dynamicItem.Metadata) as string;
+        return metadata?.StartsWith("Metadata/Items/Scarabs/", StringComparison.OrdinalIgnoreCase) == true ||
+               baseName.Contains("Scarab", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string NormalizeItemName(string name)
+    {
+        return Regex.Replace(name ?? string.Empty, @"\s+", " ").Trim();
     }
 
     private static object GetDynamicValue(Func<object> getter)
