@@ -355,7 +355,7 @@ public class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorSettings>
         if (requiredScarabs.Count == 0)
             return true;
 
-        var scarabs = GetMapDeviceScarabs(mapDeviceWindow).Where(IsScarab).Select(GetBaseName).Where(x => !string.IsNullOrWhiteSpace(x)).ToList();
+        var scarabs = GetMapDeviceScarabNames().ToList();
         if (scarabs.Count == 0)
             return false;
 
@@ -375,7 +375,7 @@ public class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorSettings>
     {
         var map = GetMapDeviceMap(mapDeviceWindow);
         var hasMap = map != null && IsMap(map);
-        var scarabs = GetMapDeviceScarabs(mapDeviceWindow).Where(IsScarab).Select(GetBaseName).Where(x => !string.IsNullOrWhiteSpace(x)).ToList();
+        var scarabs = GetMapDeviceScarabNames().ToList();
         var requiredScarabs = GetRequiredScarabs().ToList();
 
         return $"HasMap={hasMap}, MapSlotType={DescribeDynamicType(GetDynamicValue(() => ((dynamic)mapDeviceWindow).MapSlot))}, MapName={GetBaseName(map)}, Scarabs=[{string.Join(", ", scarabs)}], RequiredScarabs=[{string.Join(", ", requiredScarabs)}]";
@@ -405,11 +405,24 @@ public class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorSettings>
         return GetVisibleSlotEntity(atlasMapSlot) ?? GetVisibleSlotEntity(windowMapSlot);
     }
 
-    private static IEnumerable<Entity> GetMapDeviceScarabs(object mapDeviceWindow)
+    private static IEnumerable<string> GetMapDeviceScarabNames()
     {
-        dynamic window = mapDeviceWindow;
-        foreach (var item in GetItemsSkippingFirst(GetDynamicValue(() => window.ScarabSlots)))
-            yield return item;
+        dynamic atlas = Instance?.GameController?.IngameState?.IngameUi?.Atlas;
+        var scarabSlots = GetDynamicValue(() => atlas.MapDeviceWindow.ScarabSlots);
+        if (scarabSlots is not IEnumerable slots || scarabSlots is string)
+            yield break;
+
+        var index = 0;
+        foreach (var slot in slots)
+        {
+            if (index++ == 0)
+                continue;
+
+            dynamic dynamicSlot = slot;
+            var baseName = GetDynamicValue(() => dynamicSlot.VisibleInventoryItems[0].Item.ItemInfo.BaseName) as string;
+            if (!string.IsNullOrWhiteSpace(baseName))
+                yield return baseName;
+        }
     }
 
     private static object GetDynamicValue(Func<object> getter)
