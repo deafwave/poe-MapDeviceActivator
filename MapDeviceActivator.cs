@@ -80,9 +80,9 @@ public class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorSettings>
 
     public override Job Tick()
     {
-        var mapDeviceWindow = GameController.IngameState.IngameUi.MapDeviceWindow;
+        var mapDeviceWindow = GetMapDeviceWindow();
         var atlas = GameController.IngameState.IngameUi.Atlas;
-        if (mapDeviceWindow is { IsVisible: true } || atlas is { IsVisible: true })
+        if (IsMapDeviceWindowVisible(mapDeviceWindow) || atlas is { IsVisible: true })
         {
             scheduler.Run();
         }
@@ -105,8 +105,8 @@ public class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorSettings>
         if (_activated)
             return;
 
-        var mapDeviceWindow = GameController.IngameState.IngameUi.MapDeviceWindow;
-        if (mapDeviceWindow == null || !mapDeviceWindow.IsVisible)
+        var mapDeviceWindow = GetMapDeviceWindow();
+        if (!IsMapDeviceWindowVisible(mapDeviceWindow))
         {
             if (!_atlasSelectionAttempted && !string.IsNullOrWhiteSpace(Settings.AtlasMapName.Value) && GameController.IngameState.IngameUi.Atlas is { IsVisible: true })
             {
@@ -115,6 +115,15 @@ public class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorSettings>
                 scheduler.AddTask(SelectAtlasMap(Settings.AtlasMapName.Value), "SelectAtlasMap");
             }
 
+            return;
+        }
+
+        if (MapDeviceHasMap(mapDeviceWindow))
+        {
+            _activated = true;
+            Log("Map already inserted. Queued activation task.");
+            scheduler.AddTask(CtrlClickMapThenActivate(mapDeviceWindow), "ActivateMap");
+            scheduler.Run();
             return;
         }
 
@@ -135,6 +144,21 @@ public class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorSettings>
         _activated = true;
         Log("Queued map activation task.");
         scheduler.AddTask(CtrlClickMapThenActivate(mapDeviceWindow), "ActivateMap");
+        scheduler.Run();
+    }
+
+    private object GetMapDeviceWindow()
+    {
+        dynamic atlas = GameController?.IngameState?.IngameUi?.Atlas;
+        return GetDynamicValue(() => atlas.MapDeviceWindow) ?? GameController?.IngameState?.IngameUi?.MapDeviceWindow;
+    }
+
+    private static bool IsMapDeviceWindowVisible(object mapDeviceWindow)
+    {
+        if (mapDeviceWindow == null)
+            return false;
+
+        return GetDynamicBool(() => ((dynamic)mapDeviceWindow).IsVisible);
     }
 
     private ServerInventory.InventSlotItem FindMatchingMapInInventory()
