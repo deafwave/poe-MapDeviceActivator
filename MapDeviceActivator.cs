@@ -209,29 +209,9 @@ public class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorSettings>
             return false;
         }
 
-        if (!await EnsureAtlasMapSelected(mapDeviceWindow))
-        {
-            Log("Atlas map selection failed.");
-            return false;
-        }
-
         Log("Clicking Activate.");
         await InputAsync.ClickElement(mapDeviceWindow.ActivateButton.GetClientRectCache);
         return true;
-    }
-
-    private async SyncTask<bool> EnsureAtlasMapSelected(object mapDeviceWindow)
-    {
-        var atlasMapName = Settings.AtlasMapName.Value;
-        if (string.IsNullOrWhiteSpace(atlasMapName) || IsAtlasMapSelected(atlasMapName))
-        {
-            if (!string.IsNullOrWhiteSpace(atlasMapName))
-                Log($"Atlas map already selected: {atlasMapName}");
-
-            return true;
-        }
-
-        return await SelectAtlasMap(atlasMapName);
     }
 
     private async SyncTask<bool> SelectAtlasMap(string atlasMapName)
