@@ -297,6 +297,13 @@ public class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorSettings>
         await InputAsync.VerticalScroll(false, 8);
         await InputAsync.Wait(100);
 
+        atlasMapRect = GetAtlasMapRect(atlasMap);
+        if (!IsRectVisibleOnScreen(atlasMapRect))
+        {
+            Log($"Atlas map is not on visible screen coordinates after zoom out: {GetAtlasMapName(atlasMap)} Rect={atlasMapRect}");
+            return false;
+        }
+
         Log($"Clicking atlas map: {GetAtlasMapName(atlasMap)}");
         await InputAsync.ClickElement(atlasMapRect);
         return true;
@@ -438,6 +445,16 @@ public class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorSettings>
     {
         dynamic map = atlasMapElement;
         return (RectangleF)(GetDynamicValue(() => map.GetClientRectCache) ?? GetDynamicValue(() => map.GetClientRect()) ?? RectangleF.Empty);
+    }
+
+    private bool IsRectVisibleOnScreen(RectangleF rect)
+    {
+        if (rect.Size == Size2F.Zero || rect.Height <= 0 || rect.Width <= 0)
+            return false;
+
+        var windowRect = GameController.Window.GetWindowRectangle();
+        var screenRect = new RectangleF(0, 0, windowRect.Width, windowRect.Height);
+        return screenRect.Contains(rect.Center);
     }
 
     private static bool IsSelectedAtlasMapElement(object atlasMapElement)
