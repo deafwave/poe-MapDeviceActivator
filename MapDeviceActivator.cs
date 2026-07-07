@@ -294,9 +294,16 @@ public class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorSettings>
 
         Log($"Atlas map coordinate before zoom out: Rect={atlasMapRect}, Center={atlasMapRect.Center}");
         Log("Zooming atlas out before selecting map.");
-        ExileCore.Input.SetCursorPos(atlasMapRect.Center);
+        ExileCore.Input.SetCursorPos(GetAtlasPanelCenter());
         await InputAsync.VerticalScroll(false, 8);
         await InputAsync.Wait(100);
+
+        atlasMap = FindAtlasMapElement(atlasMapName);
+        if (atlasMap == null)
+        {
+            Log($"Atlas map was found before zoom but could not be found after zoom: {atlasMapName}");
+            return false;
+        }
 
         atlasMapRect = GetAtlasMapRect(atlasMap);
         Log($"Atlas map coordinate after zoom out: Rect={atlasMapRect}, Center={atlasMapRect.Center}");
@@ -455,8 +462,21 @@ public class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorSettings>
             return false;
 
         var windowRect = GameController.Window.GetWindowRectangle();
-        var screenRect = new RectangleF(0, 0, windowRect.Width, windowRect.Height);
-        return screenRect.Contains(rect.Center);
+        var center = rect.Center;
+        return center.X >= 0 &&
+               center.Y >= 0 &&
+               center.X <= windowRect.Width &&
+               center.Y <= windowRect.Height;
+    }
+
+    private System.Numerics.Vector2 GetAtlasPanelCenter()
+    {
+        var atlasRect = ((Element)GameController.IngameState.IngameUi.Atlas).GetClientRectCache;
+        if (atlasRect.Size != Size2F.Zero && atlasRect.Width > 0 && atlasRect.Height > 0)
+            return new System.Numerics.Vector2(atlasRect.Center.X, atlasRect.Center.Y);
+
+        var windowRect = GameController.Window.GetWindowRectangle();
+        return new System.Numerics.Vector2(windowRect.Width / 2f, windowRect.Height / 2f);
     }
 
     private static bool IsSelectedAtlasMapElement(object atlasMapElement)
