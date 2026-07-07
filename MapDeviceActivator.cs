@@ -292,6 +292,11 @@ public class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorSettings>
             return false;
         }
 
+        Log("Zooming atlas out before selecting map.");
+        ExileCore.Input.SetCursorPos(atlasMapRect.Center);
+        await InputAsync.VerticalScroll(false, 8);
+        await InputAsync.Wait(100);
+
         Log($"Clicking atlas map: {GetAtlasMapName(atlasMap)}");
         await InputAsync.ClickElement(atlasMapRect);
         return true;

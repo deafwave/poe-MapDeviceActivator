@@ -12,6 +12,8 @@ namespace MapDeviceActivator;
 
 public class InputAsync : ExileCore.Input
 {
+    private const int MouseEventWheel = 0x0800;
+    private const int WheelDelta = 120;
     private static Random Random { get; } = new Random();
     private static MapDeviceActivator Instance => MapDeviceActivator.Instance;
     public static IInputController _inputController = null;
@@ -128,6 +130,13 @@ public class InputAsync : ExileCore.Input
         return true;
     }
 
+    public static new async SyncTask<bool> VerticalScroll(bool scrollUp, int clicks)
+    {
+        mouse_event(MouseEventWheel, 0, 0, (scrollUp ? clicks : -clicks) * WheelDelta, 0);
+        await TaskUtils.NextFrame();
+        return true;
+    }
+
     public static async SyncTask<bool> Wait(int ms)
     {
         return await Wait(TimeSpan.FromMilliseconds(ms));
@@ -162,4 +171,7 @@ public class InputAsync : ExileCore.Input
         }
         return true;
     }
+
+    [DllImport("user32.dll")]
+    private static extern void mouse_event(int dwFlags, int dx, int dy, int dwData, int dwExtraInfo);
 }
