@@ -12,7 +12,6 @@ public class Scheduler
 
     public void StopAllRoutines()
     {
-        DebugWindow.LogMsg("Stopping all routines");
         Stop();
         Clear();
         InputAsync.LOCK_CONTROLLER = false;

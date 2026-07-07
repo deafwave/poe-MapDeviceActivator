@@ -28,7 +28,6 @@ public class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorSettings>
     private readonly string[] _scarabFilters = new string[5];
     private List<string> _scarabOptions = ["None"];
     private DateTime _lastScarabRefresh = DateTime.MinValue;
-    private DateTime _lastStatusLog = DateTime.MinValue;
     private static readonly string[] FallbackScarabOptions = ["None"];
     private static readonly Regex PercentRegex = new(@"(\d+)%", RegexOptions.Compiled);
 
@@ -115,7 +114,6 @@ public class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorSettings>
             {
                 _atlasSelectionAttempted = true;
                 _lastAtlasSelectionAttempt = DateTime.UtcNow;
-                Log($"Atlas is open without map device. Queuing atlas map selection: {Settings.AtlasMapName.Value}");
                 scheduler.AddTask(SelectAtlasMap(Settings.AtlasMapName.Value), "SelectAtlasMap");
                 scheduler.Run();
             }
@@ -126,7 +124,6 @@ public class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorSettings>
         if (MapDeviceHasMap(mapDeviceWindow))
         {
             _activated = true;
-            Log("Map already inserted. Queued activation task.");
             scheduler.AddTask(CtrlClickMapThenActivate(mapDeviceWindow), "ActivateMap");
             scheduler.Run();
             return;
@@ -134,20 +131,13 @@ public class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorSettings>
 
         var matchingMap = FindMatchingMapInInventory();
         if (matchingMap == null)
-        {
-            LogStatus("No inventory map matched the current map settings.");
             return;
-        }
 
         var initialMapRect = matchingMap.GetClientRect();
         if (initialMapRect.Size == Size2F.Zero || initialMapRect.Height <= 0 || initialMapRect.Width <= 0)
-        {
-            LogStatus("Matching inventory map has an invalid screen rectangle.");
             return;
-        }
 
         _activated = true;
-        Log("Queued map activation task.");
         scheduler.AddTask(CtrlClickMapThenActivate(mapDeviceWindow), "ActivateMap");
         scheduler.Run();
     }
@@ -225,95 +215,60 @@ public class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorSettings>
         {
             if (!MapDeviceHasRequiredScarabs())
             {
-                Log($"Map is already inserted, but scarab requirements are not met. Not inserting another map. {DescribeMapDeviceState(mapDeviceWindow)}");
                 return false;
             }
 
-            Log("Map device already has required map/scarab state. Clicking Activate.");
             await InputAsync.ClickElement(mapDeviceWindow.ActivateButton.GetClientRectCache);
             return true;
         }
 
         var map = FindMatchingMapInInventory();
         if (map == null)
-        {
-            Log("Matching map disappeared before click.");
             return false;
-        }
 
         var mapRect = map.GetClientRect();
         if (mapRect.Size == Size2F.Zero || mapRect.Height <= 0 || mapRect.Width <= 0)
-        {
-            Log("Matching map rectangle became invalid before click.");
             return false;
-        }
 
-        Log("Ctrl-clicking matching map into map device.");
         await InputAsync.HoldCtrl();
         await InputAsync.ClickElement(mapRect);
         await InputAsync.ReleaseCtrl();
 
         if (!await InputAsync.Wait(() => MapDeviceHasMap(mapDeviceWindow), 1000, "Timed out waiting for map device slot to contain a map."))
-        {
-            Log($"Map device slot check failed. {DescribeMapDeviceState(mapDeviceWindow)}");
             return false;
-        }
 
         if (!MapDeviceHasRequiredScarabs())
-        {
-            Log($"Map inserted, but scarab requirements are not met. {DescribeMapDeviceState(mapDeviceWindow)}");
             return false;
-        }
 
-        Log("Clicking Activate.");
         await InputAsync.ClickElement(mapDeviceWindow.ActivateButton.GetClientRectCache);
         return true;
     }
 
     private async SyncTask<bool> SelectAtlasMap(string atlasMapName)
     {
-        Log($"Looking for atlas map: {atlasMapName}");
-        LogAtlasScanState(atlasMapName);
-
         var atlasMap = FindAtlasMapElement(atlasMapName);
         if (atlasMap == null)
             atlasMap = await HoverAtlasMapsUntilNameExists(atlasMapName);
 
         if (atlasMap == null)
-        {
-            Log($"Could not find atlas map by name: {atlasMapName}. Hover that atlas map once this session if it was not scanned.");
             return false;
-        }
 
         var atlasMapRect = GetAtlasMapRect(atlasMap);
         if (atlasMapRect.Size == Size2F.Zero || atlasMapRect.Height <= 0 || atlasMapRect.Width <= 0)
-        {
-            Log($"Atlas map found but has invalid screen rectangle: {atlasMapName}");
             return false;
-        }
 
-        Log($"Atlas map coordinate before zoom out: Rect={atlasMapRect}, Center={atlasMapRect.Center}");
-        Log("Zooming atlas out before selecting map.");
         ExileCore.Input.SetCursorPos(GetAtlasPanelCenter());
         await InputAsync.VerticalScroll(false, 8);
         await InputAsync.Wait(100);
 
         atlasMap = FindAtlasMapElement(atlasMapName);
         if (atlasMap == null)
-        {
-            Log($"Atlas map was found before zoom but could not be found after zoom: {atlasMapName}");
             return false;
-        }
 
         atlasMapRect = GetAtlasMapRect(atlasMap);
-        Log($"Atlas map coordinate after zoom out: Rect={atlasMapRect}, Center={atlasMapRect.Center}");
         if (!IsRectVisibleOnScreen(atlasMapRect))
-        {
-            Log($"Atlas map is not on visible screen coordinates after zoom out: {GetAtlasMapName(atlasMap)} Rect={atlasMapRect}");
             return false;
-        }
 
-        Log($"Clicking atlas map: {GetAtlasMapName(atlasMap)}");
         await InputAsync.ClickElement(atlasMapRect);
         return true;
     }
@@ -334,9 +289,6 @@ public class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorSettings>
                 await TaskUtils.NextFrame();
 
                 var name = GetAtlasMapName(atlasMap);
-                if (!string.IsNullOrWhiteSpace(name))
-                    LogStatus($"Scanned atlas map tooltip: {name}");
-
                 if (AtlasMapNameMatches(name, atlasMapName))
                     return atlasMap;
             }
@@ -345,13 +297,6 @@ public class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorSettings>
         }
 
         return null;
-    }
-
-    private bool IsAtlasMapSelected(string atlasMapName)
-    {
-        return GetAtlasMapElements()
-            .Where(IsSelectedAtlasMapElement)
-            .Any(x => AtlasMapNameMatches(GetAtlasMapName(x), atlasMapName));
     }
 
     private object FindAtlasMapElement(string atlasMapName)
@@ -377,25 +322,6 @@ public class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorSettings>
     {
         dynamic map = atlasMapElement;
         return GetDynamicValue(() => map.Tooltip.Children[1].Children[0].Text) as string ?? string.Empty;
-    }
-
-    private void LogAtlasScanState(string configuredName)
-    {
-        var atlas = GameController?.IngameState?.IngameUi?.Atlas;
-        var innerAtlas = GetInnerAtlasElement();
-        var allChildList = innerAtlas?.Children?.Cast<object>().ToList() ?? [];
-        var atlasMaps = GetAtlasMapElements().ToList();
-        var names = atlasMaps
-            .Select(GetAtlasMapName)
-            .Where(x => !string.IsNullOrWhiteSpace(x))
-            .Take(30)
-            .ToList();
-        var heights = allChildList
-            .Select(x => x is Element element ? element.Height : GetDynamicFloat(() => ((dynamic)x).Height))
-            .Take(30)
-            .ToList();
-
-        Log($"Atlas scan for '{configuredName}'. AtlasType={DescribeDynamicType(atlas)}, InnerAtlasType={DescribeDynamicType(innerAtlas)}, Children={allChildList.Count}, CandidateMaps={atlasMaps.Count}, Heights=[{string.Join(", ", heights)}], NamedMaps=[{string.Join(", ", names)}]");
     }
 
     private Element GetInnerAtlasElement()
@@ -479,19 +405,6 @@ public class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorSettings>
         return new System.Numerics.Vector2(windowRect.Width / 2f, windowRect.Height / 2f);
     }
 
-    private static bool IsSelectedAtlasMapElement(object atlasMapElement)
-    {
-        dynamic map = atlasMapElement;
-        return GetDynamicBool(() => map.IsSelected) ||
-               GetDynamicBool(() => map.Selected) ||
-               GetDynamicBool(() => map.IsActive);
-    }
-
-    private bool MapDeviceHasMapAndRequiredScarabs(object mapDeviceWindow)
-    {
-        return MapDeviceHasMap(mapDeviceWindow) && MapDeviceHasRequiredScarabs();
-    }
-
     private static bool MapDeviceHasMap(object mapDeviceWindow)
     {
         var map = GetMapDeviceMap(mapDeviceWindow);
@@ -505,8 +418,6 @@ public class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorSettings>
             return true;
 
         var scarabs = GetMapDeviceScarabNames().Select(NormalizeItemName).Where(x => !string.IsNullOrWhiteSpace(x)).ToList();
-        LogStatus($"Scarab check. Found=[{string.Join(", ", scarabs)}], Required=[{string.Join(", ", requiredScarabs)}]");
-
         if (scarabs.Count == 0)
             return false;
 
@@ -521,30 +432,6 @@ public class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorSettings>
         }
 
         return true;
-    }
-
-    private string DescribeMapDeviceState(object mapDeviceWindow)
-    {
-        var map = GetMapDeviceMap(mapDeviceWindow);
-        var hasMap = map != null && IsMap(map);
-        var scarabs = GetMapDeviceScarabNames().ToList();
-        var requiredScarabs = GetRequiredScarabs().ToList();
-
-        return $"HasMap={hasMap}, MapSlotType={DescribeDynamicType(GetDynamicValue(() => ((dynamic)mapDeviceWindow).MapSlot))}, MapName={GetBaseName(map)}, Scarabs=[{string.Join(", ", scarabs)}], RequiredScarabs=[{string.Join(", ", requiredScarabs)}]";
-    }
-
-    private void LogStatus(string message)
-    {
-        if ((DateTime.UtcNow - _lastStatusLog).TotalSeconds < 2)
-            return;
-
-        _lastStatusLog = DateTime.UtcNow;
-        Log(message);
-    }
-
-    private static void Log(string message)
-    {
-        DebugWindow.LogMsg($"MapDeviceActivator: {message}", 5);
     }
 
     private static Entity GetMapDeviceMap(object mapDeviceWindow)
@@ -630,82 +517,6 @@ public class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorSettings>
         return GetDynamicValue(getter) is true;
     }
 
-    private static float GetDynamicFloat(Func<object> getter)
-    {
-        return GetDynamicValue(getter) switch
-        {
-            float value => value,
-            double value => (float)value,
-            int value => value,
-            _ => 0
-        };
-    }
-
-    private static IEnumerable<Entity> GetItems(object items)
-    {
-        if (items is not IEnumerable enumerable)
-        {
-            var entity = GetEntity(items);
-            if (entity != null)
-                yield return entity;
-
-            yield break;
-        }
-
-        foreach (var item in enumerable)
-        {
-            var entity = GetEntity(item);
-            if (entity != null)
-                yield return entity;
-        }
-    }
-
-    private static IEnumerable<Entity> GetItemsSkippingFirst(object items)
-    {
-        if (items is not IEnumerable enumerable || items is string)
-        {
-            foreach (var item in GetItems(items))
-                yield return item;
-
-            yield break;
-        }
-
-        var index = 0;
-        foreach (var item in enumerable)
-        {
-            if (index++ == 0)
-                continue;
-
-            var entity = GetEntity(item);
-            if (entity != null)
-                yield return entity;
-        }
-    }
-
-    private static Entity GetEntity(object item)
-    {
-        if (item is Entity entity)
-            return entity;
-
-        return GetDynamicValue(() => ((dynamic)item).Item) as Entity;
-    }
-
-    private static Entity GetSlotEntity(object slot)
-    {
-        if (slot == null)
-            return null;
-
-        if (slot is Entity entity)
-            return entity;
-
-        dynamic dynamicSlot = slot;
-        return GetDynamicValue(() => dynamicSlot.VisibleInventoryItems[0].Item) as Entity ??
-               GetDynamicValue(() => dynamicSlot.Item) as Entity ??
-               GetDynamicValue(() => dynamicSlot.Entity) as Entity ??
-               GetDynamicValue(() => dynamicSlot.Item.Item) as Entity ??
-               GetDynamicValue(() => dynamicSlot.InventoryItem.Item) as Entity;
-    }
-
     private static Entity GetVisibleSlotEntity(object slot)
     {
         if (slot == null)
@@ -727,19 +538,9 @@ public class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorSettings>
         return null;
     }
 
-    private static string DescribeDynamicType(object value)
-    {
-        return value?.GetType().FullName ?? "null";
-    }
-
     private static bool IsMap(Entity item)
     {
         return item.TryGetComponent<MapKey>(out _);
-    }
-
-    private static bool IsScarab(Entity item)
-    {
-        return item.Metadata?.StartsWith("Metadata/Items/Scarabs/", StringComparison.Ordinal) == true;
     }
 
     private IEnumerable<string> GetRequiredScarabs()
@@ -747,11 +548,6 @@ public class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorSettings>
         return GetScarabSettings()
             .Select(x => x.Value)
             .Where(x => !string.IsNullOrWhiteSpace(x) && !string.Equals(x, "None", StringComparison.OrdinalIgnoreCase));
-    }
-
-    private static string GetBaseName(Entity item)
-    {
-        return Instance?.GameController?.Files?.BaseItemTypes?.Translate(item.Path)?.BaseName ?? string.Empty;
     }
 
     private void RefreshScarabOptions()

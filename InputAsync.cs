@@ -27,14 +27,12 @@ public class InputAsync : ExileCore.Input
 
         if (Instance == null)
         {
-            DebugWindow.LogError("Instance is null");
             return;
         }
 
         var tryGetInputController = Instance.GameController.PluginBridge.GetMethod<Func<string, IInputController>>("InputHumanizer.TryGetInputController");
         if (tryGetInputController == null)
         {
-            DebugWindow.LogError("InputHumanizer method not registered.");
             return;
         }
 
@@ -43,13 +41,11 @@ public class InputAsync : ExileCore.Input
             _inputController = tryGetInputController("MapDeviceActivator");
             if (_inputController == null)
             {
-                DebugWindow.LogError("Failed to get InputHumanizer controller");
                 throw new Exception("Failed to get InputHumanizer controller");
             }
         }
-        catch (Exception ex)
+        catch
         {
-            DebugWindow.LogError($"Exception while getting InputHumanizer controller: {ex.Message}");
             throw;
         }
     }
@@ -165,8 +161,6 @@ public class InputAsync : ExileCore.Input
 
         if (!fn())
         {
-            if (ErrorMessage != "")
-                DebugWindow.LogError(ErrorMessage);
             return false;
         }
         return true;
