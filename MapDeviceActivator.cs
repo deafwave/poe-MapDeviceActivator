@@ -292,12 +292,14 @@ public class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorSettings>
             return false;
         }
 
+        Log($"Atlas map coordinate before zoom out: Rect={atlasMapRect}, Center={atlasMapRect.Center}");
         Log("Zooming atlas out before selecting map.");
         ExileCore.Input.SetCursorPos(atlasMapRect.Center);
         await InputAsync.VerticalScroll(false, 8);
         await InputAsync.Wait(100);
 
         atlasMapRect = GetAtlasMapRect(atlasMap);
+        Log($"Atlas map coordinate after zoom out: Rect={atlasMapRect}, Center={atlasMapRect.Center}");
         if (!IsRectVisibleOnScreen(atlasMapRect))
         {
             Log($"Atlas map is not on visible screen coordinates after zoom out: {GetAtlasMapName(atlasMap)} Rect={atlasMapRect}");
