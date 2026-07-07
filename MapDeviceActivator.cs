@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Text.RegularExpressions;
 using ExileCore;
 using ExileCore.PoEMemory;
@@ -378,8 +379,19 @@ public class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorSettings>
 
     private Element GetInnerAtlasElement()
     {
-        var atlas = GameController?.IngameState?.IngameUi?.Atlas as Element;
-        return GetChild(atlas, 0, 2);
+        var atlasPanel = GameController?.IngameState?.IngameUi?.Atlas;
+        return GetMemberValue(atlasPanel, "InnerAtlas") as Element ?? GetChild(atlasPanel as Element, 0, 2);
+    }
+
+    private static object GetMemberValue(object target, string memberName)
+    {
+        if (target == null)
+            return null;
+
+        var flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+        var type = target.GetType();
+        return type.GetProperty(memberName, flags)?.GetValue(target) ??
+               type.GetField(memberName, flags)?.GetValue(target);
     }
 
     private static Element GetChild(Element element, params int[] indices)
