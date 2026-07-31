@@ -47,6 +47,30 @@ public partial class MapDeviceActivator
         return null;
     }
 
+    private ServerInventory.InventSlotItem FindMatchingChartInInventory()
+    {
+        var playerInventories = GameController?.Game?.IngameState?.ServerData?.PlayerInventories;
+        var firstInventory = playerInventories?.FirstOrDefault();
+        if (firstInventory?.Inventory?.InventorySlotItems == null)
+            return null;
+
+        foreach (var item in firstInventory.Inventory.InventorySlotItems)
+        {
+            if (item?.Item == null || !item.Item.IsValid)
+                continue;
+
+            if (!item.Item.TryGetComponent<DeepwaterChart>(out _))
+                continue;
+
+            if (!item.Item.TryGetComponent<Mods>(out var mods) || !MatchesMapRarity(mods.ItemRarity))
+                continue;
+
+            return item;
+        }
+
+        return null;
+    }
+
     private bool MatchesMapRarity(ItemRarity rarity)
     {
         return string.Equals(Settings.MapRarity.Value, "Any", StringComparison.OrdinalIgnoreCase) ||

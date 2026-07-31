@@ -9,6 +9,15 @@ public partial class MapDeviceActivator
 {
     public override void DrawSettings()
     {
+        DrawListDropdown("Mode", Settings.Mode);
+
+        if (IsBathysphereMode())
+        {
+            ImGui.Text("Bathysphere chart requirements");
+            DrawListDropdown("Rarity", Settings.MapRarity);
+            return;
+        }
+
         RefreshScarabOptionsIfNeeded();
 
         ImGui.Text("Map requirements");

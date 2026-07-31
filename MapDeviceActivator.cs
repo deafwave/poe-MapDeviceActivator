@@ -27,6 +27,21 @@ public partial class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorS
 
     public override Job Tick()
     {
+        if (IsBathysphereMode())
+        {
+            // Keep running after Descend closes the bathysphere UI so we can click ChartPortal.
+            if (IsBathysphereWindowVisible() || scheduler.CurrentTask != null || scheduler.Tasks.Count > 0)
+            {
+                scheduler.Run();
+            }
+            else
+            {
+                _activated = false;
+            }
+
+            return null;
+        }
+
         var mapDeviceWindow = GetMapDeviceWindow();
         var atlas = GameController.IngameState.IngameUi.Atlas;
         if (IsMapDeviceWindowVisible(mapDeviceWindow) || atlas is { IsVisible: true })
@@ -49,6 +64,32 @@ public partial class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorS
     {
         if (scheduler.CurrentTask != null || scheduler.Tasks.Count > 0 || _activated)
             return;
+
+        if (IsBathysphereMode())
+        {
+            if (!IsBathysphereWindowVisible())
+                return;
+
+            if (IsBathysphereChartSlotFilled())
+            {
+                QueueBathysphereActivation();
+                return;
+            }
+
+            if (!IsBathysphereChartSlotEmpty())
+                return;
+
+            var matchingChart = FindMatchingChartInInventory();
+            if (matchingChart == null)
+                return;
+
+            var chartRect = matchingChart.GetClientRect();
+            if (chartRect.Size == Size2F.Zero || chartRect.Height <= 0 || chartRect.Width <= 0)
+                return;
+
+            QueueBathysphereActivation();
+            return;
+        }
 
         var mapDeviceWindow = GetMapDeviceWindow();
         if (!IsMapDeviceWindowVisible(mapDeviceWindow))
