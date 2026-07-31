@@ -70,8 +70,15 @@ public partial class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorS
             if (!IsBathysphereWindowVisible())
                 return;
 
+            // Chart already loaded: only proceed when Descend is ready; otherwise stop for this open UI.
             if (IsBathysphereChartSlotFilled())
             {
+                if (!IsBathysphereDescendButtonSaturated())
+                {
+                    FinishBathysphereSession();
+                    return;
+                }
+
                 QueueBathysphereActivation();
                 return;
             }
@@ -87,6 +94,7 @@ public partial class MapDeviceActivator : BaseSettingsPlugin<MapDeviceActivatorS
             if (chartRect.Size == Size2F.Zero || chartRect.Height <= 0 || chartRect.Width <= 0)
                 return;
 
+            // Insert path: Queue marks session active so a later unsaturated Descend cannot re-loop.
             QueueBathysphereActivation();
             return;
         }

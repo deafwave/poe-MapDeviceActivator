@@ -38,6 +38,12 @@ public partial class MapDeviceActivator
         return GetChild(GetBathysphereWindow(), 3, 0);
     }
 
+    private bool IsBathysphereDescendButtonSaturated()
+    {
+        var descendButton = GetBathysphereDescendButton();
+        return descendButton is { IsSaturated: true };
+    }
+
     private bool IsBathysphereChartSlotEmpty()
     {
         var slot = GetBathysphereChartSlot();
@@ -67,9 +73,15 @@ public partial class MapDeviceActivator
                string.Equals(entity.Metadata, ChartPortalMetadata, StringComparison.OrdinalIgnoreCase);
     }
 
+    private void FinishBathysphereSession()
+    {
+        // Prevent re-queue / re-insert while this bathysphere UI stays open.
+        _activated = true;
+    }
+
     private void QueueBathysphereActivation()
     {
-        _activated = true;
+        FinishBathysphereSession();
         scheduler.AddTask(InsertChartDescendAndEnterPortal(), "ActivateBathysphere");
         scheduler.Run();
     }
@@ -98,6 +110,13 @@ public partial class MapDeviceActivator
 
             if (!await InputAsync.Wait(IsBathysphereChartSlotFilled, 1000, "Timed out waiting for bathysphere chart slot to fill."))
                 return false;
+        }
+
+        // Chart is in: only Descend if the button is saturated. Otherwise stop for this open UI.
+        if (!IsBathysphereDescendButtonSaturated())
+        {
+            FinishBathysphereSession();
+            return false;
         }
 
         var descendButton = GetBathysphereDescendButton();
