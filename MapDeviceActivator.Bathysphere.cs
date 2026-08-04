@@ -119,24 +119,61 @@ public partial class MapDeviceActivator
             return false;
         }
 
-        var descendButton = GetBathysphereDescendButton();
-        if (descendButton == null)
+        // Descend can miss; retry a couple times, then give up instead of portal-spamming.
+        const int maxDescendAttempts = 2;
+        var descended = false;
+        for (var attempt = 0; attempt < maxDescendAttempts; attempt++)
+        {
+            if (!IsBathysphereWindowVisible() || FindChartPortalLabel() != null)
+            {
+                descended = true;
+                break;
+            }
+
+            if (!IsBathysphereDescendButtonSaturated())
+            {
+                FinishBathysphereSession();
+                return false;
+            }
+
+            var descendButton = GetBathysphereDescendButton();
+            if (descendButton == null)
+                return false;
+
+            var descendRect = descendButton.GetClientRectCache;
+            if (descendRect.Size == Size2F.Zero || descendRect.Height <= 0 || descendRect.Width <= 0)
+                return false;
+
+            await InputAsync.ClickElement(descendRect);
+
+            // Wait for the UI to close or ChartPortal to appear before treating Descend as success.
+            if (await InputAsync.Wait(
+                    () => !IsBathysphereWindowVisible() || FindChartPortalLabel() != null,
+                    1200,
+                    "Timed out waiting for Descend to take effect."))
+            {
+                descended = true;
+                break;
+            }
+        }
+
+        if (!descended)
+        {
+            FinishBathysphereSession();
             return false;
+        }
 
-        var descendRect = descendButton.GetClientRectCache;
-        if (descendRect.Size == Size2F.Zero || descendRect.Height <= 0 || descendRect.Width <= 0)
+        // Portal should already be up or appear quickly after a successful Descend.
+        if (FindChartPortalLabel() == null &&
+            !await InputAsync.Wait(() => FindChartPortalLabel() != null, 5000, "Timed out waiting for ChartPortal ground label."))
+        {
+            FinishBathysphereSession();
             return false;
+        }
 
-        await InputAsync.ClickElement(descendRect);
-
-        // Brief settle so the ChartPortal label is ready after Descend.
-        await InputAsync.Wait(Random.Shared.Next(500, 551));
-
-        if (!await InputAsync.Wait(() => FindChartPortalLabel() != null, 5000, "Timed out waiting for ChartPortal ground label."))
-            return false;
-
+        // Few deliberate portal clicks with a longer delay — no machine-gun spam.
         var sw = System.Diagnostics.Stopwatch.StartNew();
-        while (sw.Elapsed < TimeSpan.FromSeconds(5))
+        while (sw.Elapsed < TimeSpan.FromSeconds(2.5))
         {
             var portalLabel = FindChartPortalLabel();
             if (portalLabel == null)
@@ -153,7 +190,7 @@ public partial class MapDeviceActivator
             if (labelRect.Size != Size2F.Zero && labelRect.Height > 0 && labelRect.Width > 0)
                 await InputAsync.ClickElement(labelRect);
 
-            await InputAsync.Wait(Random.Shared.Next(65, 101));
+            await InputAsync.Wait(Random.Shared.Next(565, 601));
         }
 
         return FindChartPortalLabel() == null;
